@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HybridNote AI — Hybrid on-device + cloud document analysis</title>
+<meta name="description" content="HybridNote AI analyzes documents with hybrid inference: Gemini Nano on-device in Chrome for instant, private summaries, and Gemini in the cloud for deep structured analysis — powered by Firebase AI Logic." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M9 23V9h3.4v5.2H19V9h3.4v14H19v-5.6H12.4V23H9z' fill='%232dd4bf'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+<script type="importmap">
+{
+  "imports": {
+    "firebase/app": "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js",
+    "firebase/app-check": "https://www.gstatic.com/firebasejs/13.0.0/firebase-app-check.js",
+    "firebase/ai": "https://www.gstatic.com/firebasejs/13.0.0/firebase-ai.js"
+  }
+}
+</script>
+</head>
+<body>
+<div class="bg-glow" aria-hidden="true"></div>
+
+<header class="site-header">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#12161f"/><path d="M9 23V9h3.4v5.2H19V9h3.4v14H19v-5.6H12.4V23H9z" fill="#2dd4bf"/></svg>
+    <div>
+      <h1>HybridNote <span class="accent">AI</span></h1>
+      <p class="tagline">Document analysis that starts on your device and scales to the cloud.</p>
+    </div>
+  </div>
+  <div class="header-status">
+    <span id="deviceStatus" class="pill pill-muted" title="Chrome Prompt API (Gemini Nano) availability on this device">
+      <span class="dot"></span><span id="deviceStatusText">Checking on-device AI…</span>
+    </span>
+    <span id="configStatus" class="pill pill-muted" title="Firebase connection state">
+      <span class="dot"></span><span id="configStatusText">Connecting…</span>
+    </span>
+  </div>
+</header>
+
+<div id="demoBanner" class="demo-banner" hidden>
+  <strong>Demo mode.</strong>
+  This copy is running with placeholder Firebase settings, so AI requests are disabled.
+  Add a real Firebase config in <code>src/firebase-config.js</code> to go live — everything else already works.
+</div>
+
+<section class="meter" aria-label="Hybrid inference meter">
+  <div class="meter-head">
+    <h2>Hybrid meter</h2>
+    <span id="meterLast" class="meter-last">No requests yet this session</span>
+  </div>
+  <div class="meter-bar" role="img" aria-label="Share of requests answered on-device versus in the cloud">
+    <div id="meterFillOnDevice" class="meter-fill on-device" style="width:0%"></div>
+    <div id="meterFillCloud" class="meter-fill cloud" style="width:0%"></div>
+  </div>
+  <div class="meter-stats">
+    <span><i class="swatch on-device"></i><span id="meterOnDeviceCount">0 on-device</span> · $0.00 · no data left the device</span>
+    <span><i class="swatch cloud"></i><span id="meterCloudCount">0 in cloud</span> · full Gemini power</span>
+  </div>
+</section>
+
+<main class="layout">
+  <section class="card input-card" aria-label="Document input">
+    <div class="card-head">
+      <h2>Your document</h2>
+      <div class="input-actions">
+        <button id="sampleBtn" class="btn btn-ghost" type="button">Load sample meeting notes</button>
+        <label class="btn btn-ghost file-label" for="fileInput">Upload .txt / .md</label>
+        <input id="fileInput" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
+        <button id="clearBtn" class="btn btn-ghost" type="button">Clear</button>
+      </div>
+    </div>
+    <textarea id="docInput" rows="16" spellcheck="false"
+      placeholder="Paste meeting notes, an article, an email thread, a contract…&#10;&#10;Your text stays in this tab. Instant analysis runs on-device whenever Chrome's Gemini Nano is available — nothing is uploaded for that pass."></textarea>
+    <div class="input-meta">
+      <span id="charCount">0 characters</span>
+      <span id="inputNote" class="input-note"></span>
+    </div>
+    <div class="analyze-actions">
+      <button id="instantBtn" class="btn btn-primary" type="button">
+        <span class="btn-label">⚡ Instant analysis</span>
+        <span class="btn-sub">On-device first · Gemini Nano</span>
+      </button>
+      <button id="deepBtn" class="btn btn-cloud" type="button">
+        <span class="btn-label">☁ Deep analysis</span>
+        <span class="btn-sub">Cloud · structured Gemini output</span>
+      </button>
+    </div>
+    <p id="instantStatus" class="action-status" role="status"></p>
+  </section>
+
+  <div class="results">
+    <section class="card result-card" aria-label="Instant analysis result">
+      <div class="card-head">
+        <h2>Instant analysis</h2>
+        <div class="result-meta">
+          <span id="instantBadge" class="badge badge-idle">Not run yet</span>
+          <span id="instantLatency" class="latency" hidden></span>
+        </div>
+      </div>
+      <div id="instantBody" class="result-body">
+        <div class="empty-state">
+          <p class="empty-title">Summary + key points, at device speed.</p>
+          <p>Runs <strong>Gemini Nano on-device</strong> first (Chrome Prompt API via Firebase AI Logic). If the on-device model isn't available on this machine, the request falls back to the cloud — and the badge above will say so, honestly.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card result-card" aria-label="Deep analysis result">
+      <div class="card-head">
+        <h2>Deep analysis</h2>
+        <div class="result-meta">
+          <span id="deepBadge" class="badge badge-idle">Not run yet</span>
+          <span id="deepLatency" class="latency" hidden></span>
+        </div>
+      </div>
+      <div id="deepBody" class="result-body">
+        <div class="empty-state">
+          <p class="empty-title">The full structured breakdown.</p>
+          <p>A cloud Gemini model returns an <strong>executive summary, action items with owners, decisions, risks</strong> and <strong>study flashcards</strong> as validated JSON (Firebase AI Logic structured output).</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="how">
+  <h2>How the hybrid works</h2>
+  <div class="how-grid">
+    <div>
+      <h3><span class="step on-device-text">1 · On-device</span></h3>
+      <p>Firebase AI Logic's hybrid mode (<code>PREFER_ON_DEVICE</code>) routes the instant pass to Gemini Nano through Chrome's Prompt API. Private by architecture, works offline, costs nothing — and every response carries an <code>inferenceSource</code> stamp so this page can prove which model answered.</p>
+    </div>
+    <div>
+      <h3><span class="step cloud-text">2 · In-cloud</span></h3>
+      <p>Deep analysis runs on a cloud Gemini model (<code>ONLY_IN_CLOUD</code>) with a JSON response schema: action items, decisions, risks and flashcards come back as data, not prose. If on-device is unavailable, even the instant pass falls back here — labelled as cloud, never disguised.</p>
+    </div>
+    <div>
+      <h3><span class="step accent-text">3 · Protected</span></h3>
+      <p>Firebase App Check guards the AI Logic endpoints (debug-token provider in this build, reCAPTCHA-ready). The analysis engine is Firebase AI Logic end to end — no API keys in the page, no third-party AI calls.</p>
+    </div>
+  </div>
+  <p class="foot-note">Built with Firebase AI Logic (Web SDK 13.0.0) · Gemini Nano via Chrome Prompt API · Gemini in the cloud · App Check</p>
+</footer>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
