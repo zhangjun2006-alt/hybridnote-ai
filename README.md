@@ -21,7 +21,7 @@ Browser (Chrome 139+ desktop)
 │                   ◄── response.inferenceSource says who answered
 │
 ├─ Deep pass ─────► getGenerativeModel(ai, { mode: ONLY_IN_CLOUD,
-│                      inCloudParams: gemini-3.8-flash + JSON responseSchema })
+│                      inCloudParams: gemini-3.5-flash + JSON responseSchema })
 │                   └─► Gemini (cloud) → structured JSON → rendered sections
 │
 └─ Firebase App Check guards every AI Logic request
